@@ -19,14 +19,20 @@ class Assentos {
 			this.livre = true;
 		}
 
-		void aloca(int id) {
+		synchronized boolean aloca(int id) {
+			if (!this.livre) return false;
+
 			this.id = id;
 			this.livre = false;
+			return true;
 		}
 
-		void desaloca() {
+		synchronized boolean desaloca(int id) {
+			if (this.livre || this.id != id) return false;
+
 			this.id = 0;
 			this.livre = true;
+			return true;
 		}
 	}
 
@@ -53,7 +59,7 @@ class Assentos {
 		return sb.toString();
 	}
 
-	public synchronized int[] alocaAssentoLivre(int id) {
+	public int[] alocaAssentoLivre(int id) {
 		//aux é um vetor de formato [a, b] sendo 'a' o resultado da alocação (0 ou 1, fracasso ou sucesso)
 		//e 'b' o índice do assento alocado, em caso de sucesso
 		int[] aux = new int[2];
@@ -61,12 +67,11 @@ class Assentos {
 
 		Random random = new Random();
 		int possivelAssento;
-		
+
 		//procura aleatoriamente um assento livre
 		do { possivelAssento = random.nextInt(tamanho);
-		} while (!vetor[possivelAssento].livre);
+		} while (!vetor[possivelAssento].aloca(id));
 
-		vetor[possivelAssento].aloca(id);
 		assentosLivres--;
 
 		aux[0] = 1;
@@ -74,19 +79,17 @@ class Assentos {
 		return aux;
 	}
 
-	public synchronized int alocaAssentoDado(int id, int assentoId) {
-		if (!vetor[assentoId].livre) return 0;
+	public int alocaAssentoDado(int id, int assentoId) {
+		if (!vetor[assentoId].aloca(id)) return 0;
 
-		vetor[assentoId].aloca(id);
 		assentosLivres--;
 
 		return 1;
 	}
 
 	public int liberaAssento(int id, int assentoId) {
-		if (vetor[assentoId].livre || vetor[assentoId].id != id) return 0;
+		if (!vetor[assentoId].desaloca(id)) return 0;
 
-		vetor[assentoId].desaloca();
 		assentosLivres++;
 
 		return 1;
