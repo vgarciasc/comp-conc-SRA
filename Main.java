@@ -72,11 +72,14 @@ class Assentos {
 		do { possivelAssento = random.nextInt(tamanho);
 		} while (!vetor[possivelAssento].aloca(id));
 
-		assentosLivres--;
+		decrementaAssentosLivres();
 
 		aux[0] = 1;
 		aux[1] = possivelAssento;
 		return aux;
+	}
+	private synchronized void decrementaAssentosLivres() {
+		assentosLivres--;
 	}
 
 	public int alocaAssentoDado(int id, int assentoId) {
