@@ -38,11 +38,14 @@ class Assentos {
 
 	Assento[] vetor;
 	int tamanho,
-		assentosLivres;
+			assentosLivres,
+			leitores,
+			escritores;
 
 	public Assentos(int tamanho) {
 		this.tamanho = tamanho;
 		this.assentosLivres = tamanho;
+		leitores = escritores = 0;
 
 		this.vetor = new Assento[tamanho];
 		for (int i = 0; i < tamanho; i++)
@@ -54,7 +57,9 @@ class Assentos {
 		sb.append("[");
 		for (int i = 0; i < tamanho; i++) {
 			sb.append(vetor[i].id);
-			if (i != tamanho - 1) sb.append(","); }		
+			if (i != tamanho - 1) sb.append(","); 
+		}
+
 		sb.append("]");
 		return sb.toString();
 	}
@@ -78,14 +83,11 @@ class Assentos {
 		aux[1] = possivelAssento;
 		return aux;
 	}
-	private synchronized void decrementaAssentosLivres() {
-		assentosLivres--;
-	}
 
 	public int alocaAssentoDado(int id, int assentoId) {
 		if (!vetor[assentoId].aloca(id)) return 0;
 
-		assentosLivres--;
+		decrementaAssentosLivres();
 
 		return 1;
 	}
@@ -93,9 +95,44 @@ class Assentos {
 	public int liberaAssento(int id, int assentoId) {
 		if (!vetor[assentoId].desaloca(id)) return 0;
 
-		assentosLivres++;
+		incrementaAssentosLivres();
 
 		return 1;
+	}
+
+	private synchronized void decrementaAssentosLivres() {
+		assentosLivres--;
+	}
+
+	private synchronized void incrementaAssentosLivres() {
+		assentosLivres++;
+	}
+
+	public synchronized void entraLeitura() {
+		try {
+			while(escritores > 0)
+				wait();
+
+			leitores++;
+		} catch(InterruptedException e) {}
+	}
+	public synchronized void saiLeitura() {
+		leitores--;
+
+		if(leitores == 0) notify();
+	}
+	public synchronized void entraEscrita() {
+		try {
+			while((leitores > 0) || (escritores > 0))
+				wait();
+
+			escritores++;
+		} catch(InterruptedException e) {}
+	}
+	public synchronized void saiEscrita() {
+		escritores--;
+
+		notifyAll();
 	}
 }
 
@@ -219,13 +256,22 @@ class Usuario extends Thread {
 
 	void requisitaVisualizacao() {
 		System.out.println("[1] Usuario #" + id + " requisitando visualizacao de assentos.");
+
+		assentos.entraLeitura();
+
 		String mapa = assentos.visualizaAssentos();
-		System.out.println(mapa);
+		
 		buffer.adicionaElemento("1," + id + "," + mapa);
+		assentos.saiLeitura();
+
+		System.out.println(mapa);
 	}
 
 	void requisitaAssentoLivre() {
 		System.out.println("[2] Usuario #" + id + " requisitando assento livre.");
+
+		assentos.entraEscrita();
+
 		int[] resultado = assentos.alocaAssentoLivre(id);
 
 		if (resultado[0] == 0)
@@ -234,12 +280,18 @@ class Usuario extends Thread {
 			System.out.println("[2] Usuario #" + id + " bem-sucedido em alocar um assento livre. O assento alocado foi '" + resultado[1] + "'.");
 
 		String mapa = assentos.visualizaAssentos();
-		System.out.println(mapa);
+
 		buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
+		assentos.saiEscrita();
+
+		System.out.println(mapa);
 	}
 
 	void requisitaAssentoDado(int assentoId) {
 		System.out.println("[3] Usuario #" + id + " requisitando assento dado '" + assentoId + "'.");
+		
+		assentos.entraEscrita();
+
 		int resultado = assentos.alocaAssentoDado(id, assentoId);
 
 		if (resultado == 0)
@@ -248,12 +300,18 @@ class Usuario extends Thread {
 			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
 
 		String mapa = assentos.visualizaAssentos();
-		System.out.println(mapa);
+
 		buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
+		assentos.saiEscrita();
+
+		System.out.println(mapa);
 	}
 
 	void requisitaLiberacaoAssento(int assentoId) {
 		System.out.println("[4] Usuario #" + id + " requisitando liberacao do assento dado '" + assentoId + "'.");
+		
+		assentos.entraEscrita();
+
 		int resultado = assentos.liberaAssento(id, assentoId);
 
 		if (resultado == 0)
@@ -262,8 +320,11 @@ class Usuario extends Thread {
 			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
 
 		String mapa = assentos.visualizaAssentos();
-		System.out.println(mapa);
+
 		buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
+		assentos.saiEscrita();
+		
+		System.out.println(mapa);
 	}
 }
 
