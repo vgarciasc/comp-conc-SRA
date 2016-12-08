@@ -38,9 +38,9 @@ class Assentos {
 
 	Assento[] vetor;
 	int tamanho,
-			assentosLivres,
-			leitores,
-			escritores;
+		assentosLivres,
+		leitores,
+		escritores;
 
 	public Assentos(int tamanho) {
 		this.tamanho = tamanho;
@@ -50,6 +50,10 @@ class Assentos {
 		this.vetor = new Assento[tamanho];
 		for (int i = 0; i < tamanho; i++)
 			this.vetor[i] = new Assento();
+	}
+
+	public int getTamanho() {
+		return this.tamanho;
 	}
 
 	public String visualizaAssentos() {
@@ -110,25 +114,28 @@ class Assentos {
 
 	public synchronized void entraLeitura() {
 		try {
-			while(escritores > 0)
+			while (escritores > 0)
 				wait();
 
 			leitores++;
-		} catch(InterruptedException e) {}
+		} catch (InterruptedException e) {}
 	}
+
 	public synchronized void saiLeitura() {
 		leitores--;
 
-		if(leitores == 0) notify();
+		if (leitores == 0) notify();
 	}
+
 	public synchronized void entraEscrita() {
 		try {
-			while((leitores > 0) || (escritores > 0))
+			while ((leitores > 0) || (escritores > 0))
 				wait();
 
 			escritores++;
-		} catch(InterruptedException e) {}
+		} catch (InterruptedException e) {}
 	}
+
 	public synchronized void saiEscrita() {
 		escritores--;
 
@@ -245,13 +252,32 @@ class Usuario extends Thread {
 	}
 
 	public void run() {
-		try {
-			for (int i = 0; i < 2; i++) {
-				sleep(this.delay);
-				//requisitaVisualizacao();
-				requisitaAssentoLivre();
-			}
-		} catch (InterruptedException e) { return; }
+		Random random = new Random();
+		int assentoAlocado = -1; //assentoAlocado como -1 possui o significado de nenhum assento alocado
+		int aux;
+
+		int chance = random.nextInt(2);
+		if (chance == 0) {
+			//tenta alocar um assento livre qualquer
+			assentoAlocado = requisitaAssentoLivre();
+		} else if (chance == 1) {
+			//tenta alocar um assento específico selecionado aleatoriamente
+			//caso seja bem-sucedido, este é o assento alocado
+			aux = random.nextInt(assentos.getTamanho());
+			if (requisitaAssentoDado(aux))
+				assentoAlocado = aux;
+		}
+
+		//processamento bobo (pensa um pouco antes de desalocar)
+		int boba1 = 0, boba2 = 0;
+		for (; boba1 < 1000; boba1++) boba2 += boba1;
+
+		//tem chance de visualizar o mapa de assentos
+		chance = random.nextInt(2);
+		if (chance == 0)
+			requisitaVisualizacao();
+		
+		requisitaLiberacaoAssento(assentoAlocado);
 	}
 
 	void requisitaVisualizacao() {
@@ -267,64 +293,62 @@ class Usuario extends Thread {
 		System.out.println(mapa);
 	}
 
-	void requisitaAssentoLivre() {
+	int requisitaAssentoLivre() {
 		System.out.println("[2] Usuario #" + id + " requisitando assento livre.");
 
 		assentos.entraEscrita();
-
+		//
 		int[] resultado = assentos.alocaAssentoLivre(id);
+		String mapa = assentos.visualizaAssentos();
+		buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
+		//
+		assentos.saiEscrita();
 
 		if (resultado[0] == 0)
 			System.out.println("[2] Usuario #" + id + " mal-sucedido em alocar um assento livre. Todos os assentos estao cheios");
 		else if (resultado[0] == 1)
 			System.out.println("[2] Usuario #" + id + " bem-sucedido em alocar um assento livre. O assento alocado foi '" + resultado[1] + "'.");
 
-		String mapa = assentos.visualizaAssentos();
-
-		buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
-		assentos.saiEscrita();
-
-		System.out.println(mapa);
+		return resultado[1];
 	}
 
-	void requisitaAssentoDado(int assentoId) {
+	boolean requisitaAssentoDado(int assentoId) {
 		System.out.println("[3] Usuario #" + id + " requisitando assento dado '" + assentoId + "'.");
 		
 		assentos.entraEscrita();
-
+		//
 		int resultado = assentos.alocaAssentoDado(id, assentoId);
-
-		if (resultado == 0)
-			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
-		else if (resultado == 1)
-			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
-
 		String mapa = assentos.visualizaAssentos();
-
 		buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
+		//
 		assentos.saiEscrita();
 
-		System.out.println(mapa);
+		if (resultado == 0) {
+			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
+			return false;
+		} else if (resultado == 1) {
+			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
+			return true;
+		}
+
+		return false;
 	}
 
 	void requisitaLiberacaoAssento(int assentoId) {
 		System.out.println("[4] Usuario #" + id + " requisitando liberacao do assento dado '" + assentoId + "'.");
 		
 		assentos.entraEscrita();
-
+		//
 		int resultado = assentos.liberaAssento(id, assentoId);
+		String mapa = assentos.visualizaAssentos();
+		buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
+		//
+		assentos.saiEscrita();
 
 		if (resultado == 0)
 			System.out.println("[4] Usuario #" + id + " mal-sucedido em desalocar o assento dado '" + assentoId + "'.");
 		else if (resultado == 1)
 			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
-
-		String mapa = assentos.visualizaAssentos();
-
-		buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
-		assentos.saiEscrita();
-		
-		System.out.println(mapa);
 	}
 }
 
