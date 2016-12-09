@@ -43,6 +43,7 @@ def validaLog(nomeArquivo):
 	log.close()
 
 def primeiraLinha(arquivo):
+	'''Retorna a primeira linha do arquivo sem mover o file pointer'''
 	pos = arquivo.tell()
 	linha = arquivo.readline()
 	arquivo.seek(pos)
@@ -59,6 +60,7 @@ def avaliaLinha(linha):
 	return (operacao, mapa)
 
 def geraLinha(operacao, mapa):
+	'''Reconstrói linha do log a partir de descrição de operação e um mapa'''
 	string_operacao = str(operacao).strip('[').strip(']') + ','
 
 	return string_operacao + str(mapa)
@@ -70,14 +72,39 @@ def inicializaMapaAssentos(primeiraLinha):
 	return [0]*len(mapaReferencia)
 
 def comparaMapas(mapaAnterior, mapaProximo, operacao, n_linha):
+	string_linhaCorrente = geraLinha(operacao, mapa)
 
 	# 1º: Verifica se mapas tem mesmo tamanho
 	if len(mapaAnterior) != len(mapaProximo):
 		print('Erro: Aleração do número de assentos (linha: ' + n_linha + ')')
-		print(geraLinha(operacao, mapaProximo))
+		print(string_linhaCorrente)
 		sys.exit(1)
 
-	#
+	# 2º: itera pelos assentos dois a dois
+	haAssentosVazios = False
+	alteracaoAssento = None
+	for i in range(len(mapaAnterior)):
+		if mapaProximo[i] == 0:
+			haAssentosVazios = True
+		if mapaAnterior[i] != mapaProximo[i]:
+			# Verifica se uma alteração já havia sido identificada no mesmo par de mapas
+			if alteracaoAssento != none:
+				print('Erro: Modificação de mais de um assento em uma operação (linha: ' + n_linha + ')')
+				print(string_linhaCorrente)
+				sys.exit(1)
+
+			alteracaoAssento = (i, mapaAnterior[i], mapaProximo[i])
+
+	comparaOperacaoAlteracao(operacao, alteracaoAssento)
+
+def operacoesPossiveis(alteracaoAssento, haAssentosVazios):
+	'''Retorna uma tupla contendo todas as operações possíveis para uma dada alteração no mapa'''
+
+	if alteracaoAssento == None:
+		if haAssentosLivres:
+			return ([1])
+		else:
+
 
 
 if __name__ == '__main__':
