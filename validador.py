@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import sys, ast
+import sys, ast, re
 
+# TODO: Se um erro for encontrado no laço, o arquivo não será fechado
 def validaLog(nomeArquivo):
 	'''Itera pelo arquivo de log especificado, verificando se as operações realizadas são válidas'''
 	try:
@@ -26,6 +27,7 @@ def validaLog(nomeArquivo):
 		n_linha += 1
 
 		if linha == '=== FIM DO LOG ===':
+			print('Nenhum erro encontrado')
 			break
 		
 		# Avalia linha corrente
@@ -95,15 +97,47 @@ def comparaMapas(mapaAnterior, mapaProximo, operacao, n_linha):
 
 			alteracaoAssento = (i, mapaAnterior[i], mapaProximo[i])
 
-	comparaOperacaoAlteracao(operacao, alteracaoAssento)
+	# Itera pelas operações possíveis, verificando se a operação realizada é uma delas
+	string_op = operacaoParaString(operacao)
+	operacaoCompativel = False
+	for opPossivel in operacoesPossiveis(alteracaoAssento, haAssentosVazios):
+		match = re.search(opPossivel, string_op)
+		if match:
+			operacaoCompativel = True
+			break
 
+	if not operacaoCompativel:
+		print('Erro: A operação realizada não corresponde com a transformação do mapa (linha: ' + n_linha + ')')
+		print(string_linhaCorrente)
+		sys.exit(1)
+
+def operacaoParaString(operacao):
+	'''Converte uma lista descrevendo uma operação para uma string apropriada para comparação de expressão regular'''
+
+	string_op = re.sub('[\s+]', '', str(operacao)).strip('[').strip(']')
+
+	return string_op 
+
+# TODO: Acho que o caso 'operação de liberção perfeitamente legal e mapa inalterado' não será identificado como erro
+# TODO: Existe caso não coberto aqui? É possível que a função não retorne nada?
 def operacoesPossiveis(alteracaoAssento, haAssentosVazios):
-	'''Retorna uma tupla contendo todas as operações possíveis para uma dada alteração no mapa'''
+	'''Retorna uma tupla contendo reprsentações em strings de todas as operações possíveis para uma dada alteração no mapa'''
 
 	if alteracaoAssento == None:
 		if haAssentosLivres:
-			return ([1])
+			# Visualização
+			return ('1,\d+')
 		else:
+			# Visualização, alocação fracassada ou liberação fracassada
+			return ('1,\d+', '2|3|4,\d+,\d+')
+	indiceAssento, assentoAntes, assentoDepois = alteracaoAssento
+
+	if assentoAntes == 0 and assentoDepois > 0:
+		# Alocação bem sucedida
+		return ('2|3,' + assentoDepois + ',' + indiceAssento)
+	elif assentoAntes > 0 and assentoDepois == 0:
+		# Liberação de assento
+		return ('4,' + assentoAntes + ',' + indiceAssento)
 
 
 
