@@ -56,11 +56,11 @@ def avaliaLinha(linha):
 
 	return (operacao, mapa)
 
-def geraLinha(operacao, mapa):
-	'''Reconstrói linha do log a partir de descrição de operação e um mapa'''
-	string_operacao = str(operacao).strip('[').strip(']') + ','
+# def geraLinha(operacao, mapa):
+# 	'''Reconstrói linha do log a partir de descrição de operação e um mapa'''
+# 	string_operacao = str(operacao).strip('[').strip(']') + ','
 
-	return string_operacao + str(mapa)
+# 	return string_operacao + str(mapa)
 
 def inicializaMapaAssentos(primeiraLinha):
 	'''Gera o mapa de assentos inicial, tomando como referência o mapa na primeira linha do log'''
@@ -70,7 +70,7 @@ def inicializaMapaAssentos(primeiraLinha):
 
 def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 	if len(operacao) == 3:
-			codigoOperacao, tid, indiceAssento = operacao 
+			codigoOperacao, tid, indiceAssento = operacao # indiceAssento inicia contagem a partir de 1
 	else:
 		codigoOperacao, tid = operacao
 
@@ -85,11 +85,15 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 				print('Erro: Operação alocaAssentoLivre altera mapa sem assentos livres (linha ' + str(linha) + ')')
 				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 				sys.exit(1)
-		elif mapaAntes[indiceAssento] != 0:
+		elif not 1 <= indiceAssento <= len(mapaAssentosProximo):
+			print('Erro: Operação alocaAssentoLivre tenta alocar assento inexistente (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		elif mapaAntes[indiceAssento - 1] != 0:
 			print('Erro: Operação alocaAssentoLivre toma um assento ocupado (linha ' + str(linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
-		if mapaDepois[indiceAssento] != tid:
+		elif mapaDepois[indiceAssento - 1] != tid:
 			print('Erro: Operação alocaAssentoLivre não registra id de sua thread no assento alocado (linha ' + str(_linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
@@ -99,12 +103,16 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
 	elif codigoOperacao == 3: # Aloca Assento Dado
-		if mapaAntes[indiceAssento] != 0:
+		if not 1 <= indiceAssento <= len(mapaAssentosProximo):
+			print('Erro: Operação alocaAssentoDado tenta alocar assento inexistente (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		elif mapaAntes[indiceAssento - 1] != 0:
 			if mapaDepois != mapaAntes:
 				print('Erro: Operação alocaAssentoDado altera mapa de assentos sem assento especificado estar livre')
 				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 				sys.exit(1)
-		elif mapaDepois[indiceAssento] != tid:
+		elif mapaDepois[indiceAssento - 1] != tid:
 			print('Erro: Operação alocaAssentoDado não registra id de sua thread no assento alocado (linha ' + str(linha) +')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
@@ -114,12 +122,16 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
 	elif codigoOperacao == 4: # Libera Assento
-		if mapaAntes[indiceAssento] != tid:
+		if not 1 <= indiceAssento <= len(mapaAssentosProximo):
+			print('Erro: Operação liberaAssento tenta liberar assento inexistente (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		elif mapaAntes[indiceAssento - 1] != tid:
 			if mapaDepois != mapaAntes:
 				print('Erro: Operação liberaAssento altera mapa de assentos ao tentar liberar assento não alocado previamente (linha ' + str(linha) + ')')
 				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 				sys.exit(1)
-		elif mapaDepois[indiceAssento] != 0:
+		elif mapaDepois[indiceAssento - 1] != 0:
 			print('Erro: Operação liberaAssento não remove id de sua thread de assento previamente alocado (linha ' + str(linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
@@ -133,7 +145,7 @@ def demaisAssentosInalterados(mapaAntes, mapaDepois, indice):
 	'''Recebe duas listas de mesmo tamanho e verifica se todos os elementos 
 	correspondentes são iguais, com exceção dos elementos na posição indice em abas as listas'''
 
-	return mapaAntes[:indice] == mapaDepois[:indice] and mapaAntes[indice + 1:] == mapaDepois[indice + 1:]
+	return mapaAntes[:indice - 1] == mapaDepois[:indice - 1] and mapaAntes[indice:] == mapaDepois[indice:]
 
 def imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indice=None):
 	separador = '-' * os.get_terminal_size().columns
