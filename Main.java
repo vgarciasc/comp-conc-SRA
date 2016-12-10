@@ -9,7 +9,10 @@
 import java.util.*;
 import java.io.*;
 
+//--------------------------------------------------------
+//gerencia o mapa de assentos. monitor da classe usuario
 class Assentos {
+	//classe base com métodos básicos de validação de alocação/desalocação
 	class Assento {
 		int id;
 		boolean livre;
@@ -36,13 +39,15 @@ class Assentos {
 		}
 	}
 
-	Assento[] vetor;
-	int tamanho,
-		leitores,
+	Assento[] vetor; //mapa de assentos
+	List<Integer> assentosLivres;
+	int tamanho;
+	int leitores,
 		escritoresEspera;
 	boolean escritor;
-	List<Integer> assentosLivres;
 
+	//no construtor, o mapa de assentos é preenchido com assentos livres
+	//e o mapa de assentos livres recebe todos os assentos
 	public Assentos(int tamanho) {
 		this.tamanho = tamanho;
 		this.leitores = this.escritoresEspera = 0;
@@ -61,6 +66,7 @@ class Assentos {
 		return this.tamanho;
 	}
 
+	//retorna string com mapa de assentos
 	public String visualizaAssentos() {
 		StringBuilder sb = new StringBuilder();
 		sb.append("[");
@@ -73,14 +79,15 @@ class Assentos {
 		return sb.toString();
 	}
 
+	//retorna vetor de formato [a, b] sendo 'a' o resultado da alocação (0 ou 1, fracasso ou sucesso)
+	//e 'b' o índice do assento alocado, em caso de sucesso
 	public int[] alocaAssentoLivre(int threadID) {
-		//aux é um vetor de formato [a, b] sendo 'a' o resultado da alocação (0 ou 1, fracasso ou sucesso)
-		//e 'b' o índice do assento alocado, em caso de sucesso
 		int[] aux = new int[2];
-		if (assentosLivres.size() == 0) {
+		if (assentosLivres.size() == 0) { //se não houver assentos livres, retorna fracasso
 			aux[0] = 0; aux[1] = 0;
 			return aux; }
 
+		//se houver assentos livres, retorna o primeiro, e retira ele da lista de assentos livres
 		int assentoSelecionado = assentosLivres.get(0);
 		vetor[assentoSelecionado].aloca(threadID);
 		assentosLivres.remove(0);
@@ -91,23 +98,28 @@ class Assentos {
 	}
 
 	public int alocaAssentoDado(int threadID, int assentoId) {
+		//retorna fracasso se assento tem indice invalido ou se não é possivel aloca-lo
 		if (assentoId < 0 || assentoId > vetor.length) return 0;
 		if (!vetor[assentoId].aloca(threadID)) return 0;
 
+		//caso contrario, remove ele da lista de assentos livres: ele foi alocado
 		assentosLivres.remove((Integer) assentoId);
 
 		return 1;
 	}
 
 	public int liberaAssento(int threadID, int assentoId) {
+		//retorna fracasso se assento tem indice invalido ou se não é possivel desaloca-lo
 		if (assentoId < 0 || assentoId > vetor.length) return 0;
 		if (!vetor[assentoId].desaloca(threadID)) return 0;
 
+		//caso contrario, adiciona ele na lista de assentos livres: ele foi desalocado
 		assentosLivres.add(assentoId);
 
 		return 1;
 	}
 
+	//métodos básicos de leitor/escritor
 	public synchronized void entraLeitura() {
 		try {
 			while (escritor || escritoresEspera > 0)
@@ -137,6 +149,9 @@ class Assentos {
 	}
 }
 
+//--------------------------------------------------------
+//classe monitor para os produtores (classes usuário) e o consumidor (classe consumidor)
+//código básico de inserção/remoçao cíclicas visto em sala
 class Buffer {
 	int in,
 		out,
@@ -174,6 +189,7 @@ class Buffer {
 	public synchronized String removeElemento() {
 		try {
 			while (contagem == 0) {
+				//ver método 'encerrar()'
 				if (encerrar) {
 					System.out.println("[B]: Usuarios encerraram requisicoes. Buffer vazio. Encerrando buffer.");
 					return null;
@@ -191,13 +207,17 @@ class Buffer {
 		} catch (InterruptedException e) { return null; }
 	}
 
+	//se o buffer estiver vazio, pode haver a chance de nunca mais ser preenchido
+	//isso acontece se as threads produtoras tiverem finalizado. quando isso ocorrer,
+	//o buffer é sinalizado por meio do método encerrar()
 	public synchronized void encerrar() {
 		encerrar = true;
 		this.notify(); //desbloqueia o consumidor
 	}
 }
 
-//escreve as coisas no arquivo de saída
+//--------------------------------------------------------
+//consome elementos do buffer e os adiciona em um arquivo de saída
 class Consumidor extends Thread {
 	int id;
 	Buffer buffer;
@@ -215,6 +235,8 @@ class Consumidor extends Thread {
 			String aux = "=== INICIO DO LOG ===";
 			writer.println(aux);
 
+			//quando as threads produtoras tiverem parado de produzir, o consumidor
+			//também deve parar de consumir, por isso a condição do laço
 			while (!encerrar) {
 				aux = buffer.removeElemento();
 				if (aux != null) writer.println(aux);
@@ -225,13 +247,15 @@ class Consumidor extends Thread {
 		} catch (FileNotFoundException | UnsupportedEncodingException e) { }
 	}
 
+	//sinaliza para o buffer encerrar e encerra
 	public void encerrar() {
 		encerrar = true;
 		buffer.encerrar();
 	}
 }
 
-//fazem requisições ao sistema (monitor)
+//--------------------------------------------------------
+//classes produtoras do log que fazem requisições ao monitor 'assentos'
 class Usuario extends Thread {
 	int id;
 	UsuarioCreator usuarioCreator;
@@ -248,18 +272,22 @@ class Usuario extends Thread {
 	static final int numeroMaximoIteracoes = 5;
 	public void run() {
 		Random random = new Random();
-		int assentoAlocado = -1; //assentoAlocado como -1 possui o significado de nenhum assento alocado
+		int assentoAlocado = -1;
 
+		//numero aleatorio de iteracoes
 		for (int i = random.nextInt(numeroMaximoIteracoes); i > 0; i--) {
-			int chance = random.nextInt(2);
+			//joga uma moeda para ver se vai alocar um assento livre, um assento especifico ou fazer nada
+			int chance = random.nextInt(3);
 			switch (chance) {
 				case 0:
 					assentoAlocado = requisitaAssentoLivre();
 					break;
-				default:
+				case 1:
 					int assentoTentado = random.nextInt(assentos.getTamanho());
 					if (requisitaAssentoDado(assentoTentado))
 						assentoAlocado = assentoTentado;
+					break;
+				default:
 					break;
 			}
 
@@ -267,10 +295,19 @@ class Usuario extends Thread {
 			int boba1 = 0, boba2 = 0;
 			for (; boba1 < 10000; boba1++) boba2 += boba1;
 
-			//tem chance de visualizar o mapa de assentos
-			for (int j = random.nextInt(numeroMaximoIteracoes*2); j > 0; j--)
-				requisitaVisualizacao();
+			//joga uma moeda pra decidir se vai requisitar visualizações ou não
+			chance = random.nextInt(2);
+			switch (chance) {
+				case 0: //caso decida requisitar visualizações, joga um dado pra ver quantas vezes faz isso
+					for (int j = random.nextInt(numeroMaximoIteracoes); j > 0; j--)
+						requisitaVisualizacao();
+					break;
+				case 1: default:
+					break;
+			}
 			
+			//caso tenha alocado algum assento, desaloca ele. caso nao tenha alocado
+			//nenhum assento, tenta desalocar um aleatorio
 			if (assentoAlocado != -1)
 				requisitaLiberacaoAssento(assentoAlocado);
 			else
@@ -279,6 +316,7 @@ class Usuario extends Thread {
 		usuarioCreator.criarNovaThread(id);
 	}
 
+	//método de leitura do mapa de assentos
 	private void requisitaVisualizacao() {
 		System.out.println("[1] Usuario #" + id + " requisitando visualizacao de assentos.");
 
@@ -290,6 +328,7 @@ class Usuario extends Thread {
 		assentos.saiLeitura();
 	}
 
+	//método de escrita no mapa de assentos
 	private int requisitaAssentoLivre() {
 		System.out.println("[2] Usuario #" + id + " requisitando assento livre.");
 
@@ -310,6 +349,8 @@ class Usuario extends Thread {
 		return resultado[1];
 	}
 
+	//método de escrita no mapa de assentos
+	//retorna true se conseguiu alocar o assento, false caso contrário
 	private boolean requisitaAssentoDado(int assentoId) {
 		System.out.println("[3] Usuario #" + id + " requisitando assento dado '" + assentoId + "'.");
 		boolean sucesso;
@@ -320,19 +361,19 @@ class Usuario extends Thread {
 		String mapa = assentos.visualizaAssentos();
 		if (resultado == 0) {
 			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
-			buffer.adicionaElemento("3," + id + "," + -1 + "," + mapa);
 			sucesso = false;
 		} else {
 			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
-			buffer.adicionaElemento("3," + id + "," + (assentoId + 1) + "," + mapa);
 			sucesso = true;
 		}
+		buffer.adicionaElemento("3," + id + "," + (assentoId + 1) + "," + mapa);
 		//
 		assentos.saiEscrita();
 
 		return sucesso;
 	}
 
+	//método de escrita no mapa de assentos
 	private void requisitaLiberacaoAssento(int assentoId) {
 		System.out.println("[4] Usuario #" + id + " requisitando liberacao do assento dado '" + assentoId + "'.");
 		
@@ -342,7 +383,7 @@ class Usuario extends Thread {
 		String mapa = assentos.visualizaAssentos();
 		if (resultado == 0) {
 			System.out.println("[4] Usuario #" + id + " mal-sucedido em desalocar o assento dado '" + assentoId + "'."); 
-			buffer.adicionaElemento("4," + id + "," + -1 + "," + mapa);
+			buffer.adicionaElemento("4," + id + "," + (assentoId + 1) + "," + mapa);
 		} else {
 			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
 			buffer.adicionaElemento("4," + id + "," + (assentoId + 1) + "," + mapa);
@@ -352,6 +393,9 @@ class Usuario extends Thread {
 	}
 }
 
+//--------------------------------------------------------
+//classe feita para criação dinâmica de threads usuário
+//toda thread usuário é criada por UsuarioCreator
 class UsuarioCreator {
 	Assentos assentos;
 	Buffer buffer;
@@ -369,6 +413,7 @@ class UsuarioCreator {
 		this.consumidor = consumidor;
 	}
 
+	//criaçao das threads iniciais, que gerarão outras threads quando morrerem
 	public void iniciar() {
 		for (int i = 0; i < quantInicial; i++) {
 			Usuario usuario = new Usuario(contadorThreads + 1, assentos, buffer, this);
@@ -378,18 +423,21 @@ class UsuarioCreator {
 		}
 	}
 
-	public synchronized void criarNovaThread(int calleeId) {
+	//método chamado por threads quando elas estiverem encerrando
+	//para que novas threads sejam criadas em seus lugares
+	public synchronized void criarNovaThread(int threadRequisitanteID) {
 		threadsAtivas--;
-		if (contadorThreads > limite) {
+		//o numero de threads ja extrapolou o limite, nenhuma thread pode ser criada a mais
+		if (contadorThreads > limite - 1) { 
 			System.out.println("Thread " + contadorThreads + " extrapolando o limite.");
-			if (threadsAtivas == 0) {
-				System.out.println("Thread " + calleeId + " encerrou, e era a última thread ativa. Encerrando aplicação.");
+			if (threadsAtivas == 0) { //ultima thread em execução envia sinal para que o consumidor encerre
+				System.out.println("Thread " + threadRequisitanteID + " encerrou, e era a última thread ativa. Encerrando aplicação.");
 				consumidor.encerrar(); 
 			}
 			return;
 		}
 		
-		System.out.println("Thread " + calleeId + " pediu para criar nova thread de id " + contadorThreads);
+		System.out.println("Thread " + threadRequisitanteID + " pediu para criar nova thread de id " + contadorThreads);
 		Usuario usuario = new Usuario(contadorThreads + 1, assentos, buffer, this);
 		usuario.start();
 		contadorThreads++;
@@ -398,10 +446,12 @@ class UsuarioCreator {
 }
 
 //--------------------------------------------------------
-// Classe principal
+//Classe principal
+//cria as estruturas e as passa como referencia umas pras outras
+//pede para UsuarioCreator criar um certo numero de usuarios
 class Main {
   static final int TotalUsuarios = 1000;
-  static final int UsuariosIniciais = 200;
+  static final int UsuariosIniciais = 5;
   static final int NumeroAssentos = 5;
 
   public static void main(String[] args) {
