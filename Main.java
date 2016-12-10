@@ -294,11 +294,11 @@ class Usuario extends Thread {
 		int[] resultado = assentos.alocaAssentoLivre(id);
 		String mapa = assentos.visualizaAssentos();
 		if (resultado[0] == 0) {
-			buffer.adicionaElemento("2," + id + "," + -1 + "," + mapa);
 			System.out.println("[2] Usuario #" + id + " mal-sucedido em alocar um assento livre. Todos os assentos estao cheios");
+			buffer.adicionaElemento("2," + id + "," + -1 + "," + mapa);
 		} else {
-			buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
 			System.out.println("[2] Usuario #" + id + " bem-sucedido em alocar um assento livre. O assento alocado foi '" + resultado[1] + "'.");
+			buffer.adicionaElemento("2," + id + "," + (resultado[1] + 1) + "," + mapa);
 		}
 		//
 		assentos.saiEscrita();
@@ -321,7 +321,7 @@ class Usuario extends Thread {
 			sucesso = false;
 		} else {
 			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
-			buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
+			buffer.adicionaElemento("3," + id + "," + (assentoId + 1) + "," + mapa);
 			sucesso = true;
 		}
 		//
@@ -342,7 +342,7 @@ class Usuario extends Thread {
 			buffer.adicionaElemento("4," + id + "," + -1 + "," + mapa);
 		} else {
 			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
-			buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
+			buffer.adicionaElemento("4," + id + "," + (assentoId + 1) + "," + mapa);
 		}
 		//
 		assentos.saiEscrita();
@@ -387,7 +387,7 @@ class ThreadCreator {
 //--------------------------------------------------------
 // Classe principal
 class Main {
-  static final int TotalUsuarios = 1000;
+  static final int TotalUsuarios = 5000;
   static final int UsuariosIniciais = 1000;
   static final int NumeroAssentos = 5;
 
