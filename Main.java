@@ -234,45 +234,47 @@ class Consumidor extends Thread {
 //fazem requisições ao sistema (monitor)
 class Usuario extends Thread {
 	int id;
-	ThreadCreator threadCreator;
+	UsuarioCreator usuarioCreator;
 	Assentos assentos;
 	Buffer buffer;
 
-	public Usuario(int id, Assentos assentos, Buffer buffer, ThreadCreator threadCreator) {
+	public Usuario(int id, Assentos assentos, Buffer buffer, UsuarioCreator usuarioCreator) {
 		this.id = id;
 		this.assentos = assentos;
 		this.buffer = buffer;
-		this.threadCreator = threadCreator;
+		this.usuarioCreator = usuarioCreator;
 	}
 
+	static final int numeroMaximoIteracoes = 5;
 	public void run() {
 		Random random = new Random();
 		int assentoAlocado = -1; //assentoAlocado como -1 possui o significado de nenhum assento alocado
 
-		int chance = random.nextInt(2);
-		switch (chance) {
-			case 0:
-				assentoAlocado = requisitaAssentoLivre();
-			case 1: default:
-				int assentoTentado = random.nextInt(assentos.getTamanho());
-				if (requisitaAssentoDado(assentoTentado))
-					assentoAlocado = assentoTentado;
-		}
+		for (int i = random.nextInt(numeroMaximoIteracoes); i > 0; i--) {
+			int chance = random.nextInt(2);
+			switch (chance) {
+				case 0:
+					assentoAlocado = requisitaAssentoLivre();
+				default:
+					int assentoTentado = random.nextInt(assentos.getTamanho());
+					if (requisitaAssentoDado(assentoTentado))
+						assentoAlocado = assentoTentado;
+			}
 
-		//processamento bobo (pensa um pouco antes de desalocar)
-		int boba1 = 0, boba2 = 0;
-		for (; boba1 < 1000; boba1++) boba2 += boba1;
+			//processamento bobo (pensa um pouco antes de desalocar)
+			int boba1 = 0, boba2 = 0;
+			for (; boba1 < 10000; boba1++) boba2 += boba1;
 
-		//tem chance de visualizar o mapa de assentos
-		chance = random.nextInt(2);
-		switch (chance) {
-			case 0:
+			//tem chance de visualizar o mapa de assentos
+			for (int j = random.nextInt(numeroMaximoIteracoes*2); j > 0; j--)
 				requisitaVisualizacao();
-			default:
+			
+			if (assentoAlocado != -1)
+				requisitaLiberacaoAssento(assentoAlocado);
+			else
+				requisitaLiberacaoAssento(random.nextInt(assentos.getTamanho()));
 		}
-		
-		requisitaLiberacaoAssento(assentoAlocado);
-		threadCreator.criarNovaThread(id);
+		usuarioCreator.criarNovaThread(id);
 	}
 
 	private void requisitaVisualizacao() {
@@ -349,15 +351,16 @@ class Usuario extends Thread {
 	}
 }
 
-class ThreadCreator {
+class UsuarioCreator {
 	Assentos assentos;
 	Buffer buffer;
 	Consumidor consumidor;
-	int limite = 40,
-		contadorThreads = 1,
+	int limite,
+		contadorThreads = 0,
+		threadsAtivas = 0,
 		quantInicial;
 
-	public ThreadCreator(int quantInicial, int limite, Assentos assentos, Buffer buffer, Consumidor consumidor) {
+	public UsuarioCreator(int quantInicial, int limite, Assentos assentos, Buffer buffer, Consumidor consumidor) {
 		this.quantInicial = quantInicial;
 		this.limite = limite;		
 		this.assentos = assentos;
@@ -366,40 +369,49 @@ class ThreadCreator {
 	}
 
 	public void iniciar() {
-		for (int i = 0; i < quantInicial; i++)
-			criarNovaThread(-1);
+		for (int i = 0; i < quantInicial; i++) {
+			Usuario usuario = new Usuario(contadorThreads + 1, assentos, buffer, this);
+			usuario.start();
+			contadorThreads++;
+			threadsAtivas++;
+		}
 	}
 
 	public synchronized void criarNovaThread(int calleeId) {
-		if (calleeId == limite) { 
-			System.out.println("Thread " + calleeId + " encerrou. Encerrando programa...");
-			consumidor.encerrar(); 
-			return; }
-		if (contadorThreads > limite) return;
+		threadsAtivas--;
+		if (contadorThreads > limite) {
+			System.out.println("Thread " + contadorThreads + " extrapolando o limite.");
+			if (threadsAtivas == 0) {
+				System.out.println("Thread " + calleeId + " encerrou, e era a última thread ativa. Encerrando aplicação.");
+				consumidor.encerrar(); 
+			}
+			return;
+		}
 		
 		System.out.println("Thread " + calleeId + " pediu para criar nova thread de id " + contadorThreads);
-		Usuario usuario = new Usuario(contadorThreads, assentos, buffer, this);
+		Usuario usuario = new Usuario(contadorThreads + 1, assentos, buffer, this);
 		usuario.start();
 		contadorThreads++;
+		threadsAtivas++;
 	}
 }
 
 //--------------------------------------------------------
 // Classe principal
 class Main {
-  static final int TotalUsuarios = 5000;
-  static final int UsuariosIniciais = 1000;
+  static final int TotalUsuarios = 1000;
+  static final int UsuariosIniciais = 200;
   static final int NumeroAssentos = 5;
 
   public static void main(String[] args) {
     int i, delay = 1000;
-	Buffer buffer = new Buffer(TotalUsuarios);
+	Buffer buffer = new Buffer(UsuariosIniciais);
     Assentos assentos = new Assentos(NumeroAssentos);
 
 	Consumidor consumidor = new Consumidor(0, buffer);
 	consumidor.start();
 
-	ThreadCreator threadCreator = new ThreadCreator(UsuariosIniciais, TotalUsuarios, assentos, buffer, consumidor);
-	threadCreator.iniciar();
+	UsuarioCreator usuarioCreator = new UsuarioCreator(UsuariosIniciais, TotalUsuarios, assentos, buffer, consumidor);
+	usuarioCreator.iniciar();
   }
 }
