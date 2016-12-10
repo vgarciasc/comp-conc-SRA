@@ -255,10 +255,12 @@ class Usuario extends Thread {
 			switch (chance) {
 				case 0:
 					assentoAlocado = requisitaAssentoLivre();
+					break;
 				default:
 					int assentoTentado = random.nextInt(assentos.getTamanho());
 					if (requisitaAssentoDado(assentoTentado))
 						assentoAlocado = assentoTentado;
+					break;
 			}
 
 			//processamento bobo (pensa um pouco antes de desalocar)
@@ -316,7 +318,6 @@ class Usuario extends Thread {
 		//
 		int resultado = assentos.alocaAssentoDado(id, assentoId);
 		String mapa = assentos.visualizaAssentos();
-		buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
 		if (resultado == 0) {
 			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
 			buffer.adicionaElemento("3," + id + "," + -1 + "," + mapa);
