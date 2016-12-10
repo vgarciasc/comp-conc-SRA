@@ -85,7 +85,7 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 				print('Erro: Operação alocaAssentoLivre altera mapa sem assentos livres (linha ' + str(linha) + ')')
 				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 				sys.exit(1)
-		elif not 1 <= indiceAssento <= len(mapaAssentosProximo):
+		elif not 1 <= indiceAssento <= len(mapaDepois):
 			print('Erro: Operação alocaAssentoLivre tenta alocar assento inexistente (linha ' + str(linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
@@ -103,7 +103,7 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
 	elif codigoOperacao == 3: # Aloca Assento Dado
-		if not 1 <= indiceAssento <= len(mapaAssentosProximo):
+		if not 1 <= indiceAssento <= len(mapaDepois):
 			print('Erro: Operação alocaAssentoDado tenta alocar assento inexistente (linha ' + str(linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
@@ -122,7 +122,7 @@ def validaLinha(linha, mapaAntes, mapaDepois, operacao):
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
 	elif codigoOperacao == 4: # Libera Assento
-		if not 1 <= indiceAssento <= len(mapaAssentosProximo):
+		if not 1 <= indiceAssento <= len(mapaDepois):
 			print('Erro: Operação liberaAssento tenta liberar assento inexistente (linha ' + str(linha) + ')')
 			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 			sys.exit(1)
