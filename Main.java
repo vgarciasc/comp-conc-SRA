@@ -38,18 +38,23 @@ class Assentos {
 
 	Assento[] vetor;
 	int tamanho,
-		assentosLivres,
 		leitores,
-		escritores;
+		escritoresEspera;
+	boolean escritor;
+	List<Integer> assentosLivres;
 
 	public Assentos(int tamanho) {
 		this.tamanho = tamanho;
-		this.assentosLivres = tamanho;
-		leitores = escritores = 0;
+		this.leitores = this.escritoresEspera = 0;
+		this.escritor = false;
 
+		assentosLivres = new ArrayList<Integer>();
 		this.vetor = new Assento[tamanho];
-		for (int i = 0; i < tamanho; i++)
-			this.vetor[i] = new Assento();
+		for (int i = 0; i < tamanho; i++) {
+			Assento assento = new Assento();
+			this.vetor[i] = assento;
+			assentosLivres.add(i);
+		}
 	}
 
 	public int getTamanho() {
@@ -68,47 +73,44 @@ class Assentos {
 		return sb.toString();
 	}
 
-	public int[] alocaAssentoLivre(int id) {
+	public int[] alocaAssentoLivre(int threadID) {
 		//aux é um vetor de formato [a, b] sendo 'a' o resultado da alocação (0 ou 1, fracasso ou sucesso)
 		//e 'b' o índice do assento alocado, em caso de sucesso
 		int[] aux = new int[2];
-		if (assentosLivres == 0) { aux[0] = 0; aux[1] = 0; return aux; }
+		if (assentosLivres.size() == 0) {
+			aux[0] = 0; aux[1] = 0;
+			return aux; }
 
-		Random random = new Random();
-		int possivelAssento;
-
-		//procura aleatoriamente um assento livre
-		do { possivelAssento = random.nextInt(tamanho);
-		} while (!vetor[possivelAssento].aloca(id));
-
-		assentosLivres--;
+		int assentoSelecionado = assentosLivres.get(0);
+		vetor[assentoSelecionado].aloca(threadID);
+		assentosLivres.remove(0);
 
 		aux[0] = 1;
-		aux[1] = possivelAssento;
+		aux[1] = assentoSelecionado;
 		return aux;
 	}
 
-	public int alocaAssentoDado(int id, int assentoId) {
+	public int alocaAssentoDado(int threadID, int assentoId) {
 		if (assentoId < 0 || assentoId > vetor.length) return 0;
-		if (!vetor[assentoId].aloca(id)) return 0;
+		if (!vetor[assentoId].aloca(threadID)) return 0;
 
-		assentosLivres--;
+		assentosLivres.remove((Integer) assentoId);
 
 		return 1;
 	}
 
-	public int liberaAssento(int id, int assentoId) {
+	public int liberaAssento(int threadID, int assentoId) {
 		if (assentoId < 0 || assentoId > vetor.length) return 0;
-		if (!vetor[assentoId].desaloca(id)) return 0;
+		if (!vetor[assentoId].desaloca(threadID)) return 0;
 
-		assentosLivres++;
+		assentosLivres.add(assentoId);
 
 		return 1;
 	}
 
 	public synchronized void entraLeitura() {
 		try {
-			while (escritores > 0)
+			while (escritor || escritoresEspera > 0)
 				this.wait();
 			leitores++;
 		} catch (InterruptedException e) {}
@@ -121,14 +123,16 @@ class Assentos {
 
 	public synchronized void entraEscrita() {
 		try {
-			while (leitores > 0 || escritores > 0)
+			escritoresEspera++;
+			while (leitores > 0 || escritor)
 				this.wait();
-			escritores++;
+			escritoresEspera--;
+			escritor = true;
 		} catch (InterruptedException e) {}
 	}
 
 	public synchronized void saiEscrita() {
-		escritores--;		
+		escritor = false;		
 		this.notifyAll();
 	}
 }
@@ -244,18 +248,15 @@ class Usuario extends Thread {
 	public void run() {
 		Random random = new Random();
 		int assentoAlocado = -1; //assentoAlocado como -1 possui o significado de nenhum assento alocado
-		int aux;
 
 		int chance = random.nextInt(2);
-		if (chance == 0) {
-			//tenta alocar um assento livre qualquer
-			assentoAlocado = requisitaAssentoLivre();
-		} else if (chance == 1) {
-			//tenta alocar um assento específico selecionado aleatoriamente
-			//caso seja bem-sucedido, este é o assento alocado
-			aux = random.nextInt(assentos.getTamanho());
-			if (requisitaAssentoDado(aux))
-				assentoAlocado = aux;
+		switch (chance) {
+			case 0:
+				assentoAlocado = requisitaAssentoLivre();
+			case 1: default:
+				int assentoTentado = random.nextInt(assentos.getTamanho());
+				if (requisitaAssentoDado(assentoTentado))
+					assentoAlocado = assentoTentado;
 		}
 
 		//processamento bobo (pensa um pouco antes de desalocar)
@@ -264,8 +265,11 @@ class Usuario extends Thread {
 
 		//tem chance de visualizar o mapa de assentos
 		chance = random.nextInt(2);
-		if (chance == 0)
-			requisitaVisualizacao();
+		switch (chance) {
+			case 0:
+				requisitaVisualizacao();
+			default:
+		}
 		
 		requisitaLiberacaoAssento(assentoAlocado);
 		threadCreator.criarNovaThread(id);
@@ -304,7 +308,8 @@ class Usuario extends Thread {
 
 	private boolean requisitaAssentoDado(int assentoId) {
 		System.out.println("[3] Usuario #" + id + " requisitando assento dado '" + assentoId + "'.");
-		
+		boolean sucesso;
+
 		assentos.entraEscrita();
 		//
 		int resultado = assentos.alocaAssentoDado(id, assentoId);
@@ -313,17 +318,16 @@ class Usuario extends Thread {
 		if (resultado == 0) {
 			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
 			buffer.adicionaElemento("3," + id + "," + -1 + "," + mapa);
-			return false;
+			sucesso = false;
 		} else {
 			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
 			buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
-			return true;
+			sucesso = true;
 		}
 		//
 		assentos.saiEscrita();
 
-
-		return false;
+		return sucesso;
 	}
 
 	private void requisitaLiberacaoAssento(int assentoId) {
@@ -383,33 +387,19 @@ class ThreadCreator {
 //--------------------------------------------------------
 // Classe principal
 class Main {
-  static final int TotalUsuarios = 5;
-  static final int UsuariosIniciais = 5;
-  static final int A = 5;
+  static final int TotalUsuarios = 1000;
+  static final int UsuariosIniciais = 1000;
+  static final int NumeroAssentos = 5;
 
   public static void main(String[] args) {
     int i, delay = 1000;
-	Buffer buffer = new Buffer(U);
-    Usuario[] usuarios = new Usuario[U];
-    Assentos assentos = new Assentos(A);
+	Buffer buffer = new Buffer(TotalUsuarios);
+    Assentos assentos = new Assentos(NumeroAssentos);
 
 	Consumidor consumidor = new Consumidor(0, buffer);
 	consumidor.start();
 
 	ThreadCreator threadCreator = new ThreadCreator(UsuariosIniciais, TotalUsuarios, assentos, buffer, consumidor);
 	threadCreator.iniciar();
-
-    /*for (i = 0; i < U; i++) {
-       usuarios[i] = new Usuario(i + 1, delay, assentos, buffer, threadCreator);
-       usuarios[i].start(); 
-    }
-
-    try {
-    	for (i = 0; i < U; i++)
-       		usuarios[i].join(); 
-    } catch (InterruptedException e) { } 
-
-   	consumidor.encerrar();
-   	System.out.println(">> Fim");*/
   }
 }
