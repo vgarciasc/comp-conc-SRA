@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys, ast, re
+import sys, ast, os
 
 # TODO: Se um erro for encontrado no laço, o arquivo não será fechado
 def validaLog(nomeArquivo):
@@ -16,9 +16,7 @@ def validaLog(nomeArquivo):
 	# Salta cabeçalho
 	log.readline()
 
-	# Inicializa mapaAssentosAnterior
 	mapaAssentosAnterior = inicializaMapaAssentos(primeiraLinha(log))
-	print('mapaAssentosAnterior: ' + str(mapaAssentosAnterior))
 	
 	n_linha = 0
 	# Itera pelo log
@@ -33,15 +31,12 @@ def validaLog(nomeArquivo):
 		# Avalia linha corrente
 		operacao, mapaAssentosProximo = avaliaLinha(linha)
 
-		# Compara mapa anterior com próximo mapa
-
-		# Verifica se as mudanças foram consistentes com a operação realizada
-		## Se foram, segue em frente
-		## se não foram, imprime mensagem de erro apropriada 
-		print(linha)
-
+		validaLinha(n_linha, mapaAssentosAnterior, mapaAssentosProximo, operacao)
 
 		
+		mapaAssentosAnterior = mapaAssentosProximo
+
+
 	log.close()
 
 def primeiraLinha(arquivo):
@@ -73,71 +68,84 @@ def inicializaMapaAssentos(primeiraLinha):
 
 	return [0]*len(mapaReferencia)
 
-def comparaMapas(mapaAnterior, mapaProximo, operacao, n_linha):
-	string_linhaCorrente = geraLinha(operacao, mapa)
+def validaLinha(linha, mapaAntes, mapaDepois, operacao):
+	if len(operacao) == 3:
+			codigoOperacao, tid, indiceAssento = operacao 
+	else:
+		codigoOperacao, tid = operacao
 
-	# 1º: Verifica se mapas tem mesmo tamanho
-	if len(mapaAnterior) != len(mapaProximo):
-		print('Erro: Aleração do número de assentos (linha: ' + n_linha + ')')
-		print(string_linhaCorrente)
-		sys.exit(1)
-
-	# 2º: itera pelos assentos dois a dois
-	haAssentosVazios = False
-	alteracaoAssento = None
-	for i in range(len(mapaAnterior)):
-		if mapaProximo[i] == 0:
-			haAssentosVazios = True
-		if mapaAnterior[i] != mapaProximo[i]:
-			# Verifica se uma alteração já havia sido identificada no mesmo par de mapas
-			if alteracaoAssento != none:
-				print('Erro: Modificação de mais de um assento em uma operação (linha: ' + n_linha + ')')
-				print(string_linhaCorrente)
+	if codigoOperacao == 1: # Visualiza Assentos
+		if mapaDepois != mapaAntes:
+			print('Erro: Operação visualizaAssentos alterando assentos (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois)
+			sys.exit(1)
+	elif codigoOperacao == 2: # Aloca Assento Livre
+		if indiceAssento == -1:
+			if mapaDepois != mapaAntes:
+				print('Erro: Operação alocaAssentoLivre altera mapa sem assentos livres (linha ' + str(linha) + ')')
+				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
 				sys.exit(1)
+		elif mapaAntes[indiceAssento] != 0:
+			print('Erro: Operação alocaAssentoLivre toma um assento ocupado (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		if mapaDepois[indiceAssento] != tid:
+			print('Erro: Operação alocaAssentoLivre não registra id de sua thread no assento alocado (linha ' + str(_linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		# Verificar aqui se demais assentos não foram alterados
+		if demaisAssentosInalterados(mapaAntes, mapaDepois, indiceAssento) == False:
+			print('Erro: Operação alocaAssentoLivre altera mais de um assento (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+	elif codigoOperacao == 3: # Aloca Assento Dado
+		if mapaAntes[indiceAssento] != 0:
+			if mapaDepois != mapaAntes:
+				print('Erro: Operação alocaAssentoDado altera mapa de assentos sem assento especificado estar livre')
+				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+				sys.exit(1)
+		elif mapaDepois[indiceAssento] != tid:
+			print('Erro: Operação alocaAssentoDado não registra id de sua thread no assento alocado (linha ' + str(linha) +')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		# Verificar aqui se demais assentos não foram alterados
+		if demaisAssentosInalterados(mapaAntes, mapaDepois, indiceAssento) == False:
+			print('Erro: Operação alocaAssentoDado altera mais de um assento (linha: ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+	elif codigoOperacao == 4: # Libera Assento
+		if mapaAntes[indiceAssento] != tid:
+			if mapaDepois != mapaAntes:
+				print('Erro: Operação liberaAssento altera mapa de assentos ao tentar liberar assento não alocado previamente (linha ' + str(linha) + ')')
+				imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+				sys.exit(1)
+		elif mapaDepois[indiceAssento] != 0:
+			print('Erro: Operação liberaAssento não remove id de sua thread de assento previamente alocado (linha ' + str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
+		# Verificar aqui se demais assentos não foram alterados
+		if demaisAssentosInalterados(mapaAntes, mapaDepois, indiceAssento) == False:
+			print('Erro: operação liberaAssento altera mais de um assento (linha ' +  str(linha) + ')')
+			imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indiceAssento)
+			sys.exit(1)
 
-			alteracaoAssento = (i, mapaAnterior[i], mapaProximo[i])
+def demaisAssentosInalterados(mapaAntes, mapaDepois, indice):
+	'''Recebe duas listas de mesmo tamanho e verifica se todos os elementos 
+	correspondentes são iguais, com exceção dos elementos na posição indice em abas as listas'''
 
-	# Itera pelas operações possíveis, verificando se a operação realizada é uma delas
-	string_op = operacaoParaString(operacao)
-	operacaoCompativel = False
-	for opPossivel in operacoesPossiveis(alteracaoAssento, haAssentosVazios):
-		match = re.search(opPossivel, string_op)
-		if match:
-			operacaoCompativel = True
-			break
+	return mapaAntes[:indice] == mapaDepois[:indice] and mapaAntes[indice + 1:] == mapaDepois[indice + 1:]
 
-	if not operacaoCompativel:
-		print('Erro: A operação realizada não corresponde com a transformação do mapa (linha: ' + n_linha + ')')
-		print(string_linhaCorrente)
-		sys.exit(1)
+def imprimeDetalhesDeErro(tid, mapaAntes, mapaDepois, indice=None):
+	separador = '-' * os.get_terminal_size().columns
+	print(separador)
+	print('Detalhes:')
+	print('thread: ' + str(tid))
+	if indice != None: print('Índice assento: ' + str(indice))
 
-def operacaoParaString(operacao):
-	'''Converte uma lista descrevendo uma operação para uma string apropriada para comparação de expressão regular'''
-
-	string_op = re.sub('[\s+]', '', str(operacao)).strip('[').strip(']')
-
-	return string_op 
-
-# TODO: Acho que o caso 'operação de liberção perfeitamente legal e mapa inalterado' não será identificado como erro
-# TODO: Existe caso não coberto aqui? É possível que a função não retorne nada?
-def operacoesPossiveis(alteracaoAssento, haAssentosVazios):
-	'''Retorna uma tupla contendo reprsentações em strings de todas as operações possíveis para uma dada alteração no mapa'''
-
-	if alteracaoAssento == None:
-		if haAssentosLivres:
-			# Visualização
-			return ('1,\d+')
-		else:
-			# Visualização, alocação fracassada ou liberação fracassada
-			return ('1,\d+', '2|3|4,\d+,\d+')
-	indiceAssento, assentoAntes, assentoDepois = alteracaoAssento
-
-	if assentoAntes == 0 and assentoDepois > 0:
-		# Alocação bem sucedida
-		return ('2|3,' + assentoDepois + ',' + indiceAssento)
-	elif assentoAntes > 0 and assentoDepois == 0:
-		# Liberação de assento
-		return ('4,' + assentoAntes + ',' + indiceAssento)
+	print('\nMapa de assentos antes:')
+	print(str(mapaAntes))
+	print('\nMapa de assentos depois:')
+	print(str(mapaDepois))
 
 
 
