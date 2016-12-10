@@ -81,7 +81,7 @@ class Assentos {
 		do { possivelAssento = random.nextInt(tamanho);
 		} while (!vetor[possivelAssento].aloca(id));
 
-		decrementaAssentosLivres();
+		assentosLivres--;
 
 		aux[0] = 1;
 		aux[1] = possivelAssento;
@@ -89,57 +89,47 @@ class Assentos {
 	}
 
 	public int alocaAssentoDado(int id, int assentoId) {
+		if (assentoId < 0 || assentoId > vetor.length) return 0;
 		if (!vetor[assentoId].aloca(id)) return 0;
 
-		decrementaAssentosLivres();
+		assentosLivres--;
 
 		return 1;
 	}
 
 	public int liberaAssento(int id, int assentoId) {
+		if (assentoId < 0 || assentoId > vetor.length) return 0;
 		if (!vetor[assentoId].desaloca(id)) return 0;
 
-		incrementaAssentosLivres();
+		assentosLivres++;
 
 		return 1;
-	}
-
-	private synchronized void decrementaAssentosLivres() {
-		assentosLivres--;
-	}
-
-	private synchronized void incrementaAssentosLivres() {
-		assentosLivres++;
 	}
 
 	public synchronized void entraLeitura() {
 		try {
 			while (escritores > 0)
-				wait();
-
+				this.wait();
 			leitores++;
 		} catch (InterruptedException e) {}
 	}
 
 	public synchronized void saiLeitura() {
 		leitores--;
-
-		if (leitores == 0) notify();
+		if (leitores == 0) this.notify();
 	}
 
 	public synchronized void entraEscrita() {
 		try {
-			while ((leitores > 0) || (escritores > 0))
-				wait();
-
+			while (leitores > 0 || escritores > 0)
+				this.wait();
 			escritores++;
 		} catch (InterruptedException e) {}
 	}
 
 	public synchronized void saiEscrita() {
-		escritores--;
-
-		notifyAll();
+		escritores--;		
+		this.notifyAll();
 	}
 }
 
@@ -240,15 +230,15 @@ class Consumidor extends Thread {
 //fazem requisições ao sistema (monitor)
 class Usuario extends Thread {
 	int id;
-	int delay;
+	ThreadCreator threadCreator;
 	Assentos assentos;
 	Buffer buffer;
 
-	public Usuario(int id, int delay, Assentos assentos, Buffer buffer) {
+	public Usuario(int id, Assentos assentos, Buffer buffer, ThreadCreator threadCreator) {
 		this.id = id;
-		this.delay = delay;
 		this.assentos = assentos;
 		this.buffer = buffer;
+		this.threadCreator = threadCreator;
 	}
 
 	public void run() {
@@ -278,41 +268,41 @@ class Usuario extends Thread {
 			requisitaVisualizacao();
 		
 		requisitaLiberacaoAssento(assentoAlocado);
+		threadCreator.criarNovaThread(id);
 	}
 
-	void requisitaVisualizacao() {
+	private void requisitaVisualizacao() {
 		System.out.println("[1] Usuario #" + id + " requisitando visualizacao de assentos.");
 
 		assentos.entraLeitura();
-
+		//
 		String mapa = assentos.visualizaAssentos();
-		
 		buffer.adicionaElemento("1," + id + "," + mapa);
+		//
 		assentos.saiLeitura();
-
-		System.out.println(mapa);
 	}
 
-	int requisitaAssentoLivre() {
+	private int requisitaAssentoLivre() {
 		System.out.println("[2] Usuario #" + id + " requisitando assento livre.");
 
 		assentos.entraEscrita();
 		//
 		int[] resultado = assentos.alocaAssentoLivre(id);
 		String mapa = assentos.visualizaAssentos();
-		buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
+		if (resultado[0] == 0) {
+			buffer.adicionaElemento("2," + id + "," + -1 + "," + mapa);
+			System.out.println("[2] Usuario #" + id + " mal-sucedido em alocar um assento livre. Todos os assentos estao cheios");
+		} else {
+			buffer.adicionaElemento("2," + id + "," + resultado[1] + "," + mapa);
+			System.out.println("[2] Usuario #" + id + " bem-sucedido em alocar um assento livre. O assento alocado foi '" + resultado[1] + "'.");
+		}
 		//
 		assentos.saiEscrita();
-
-		if (resultado[0] == 0)
-			System.out.println("[2] Usuario #" + id + " mal-sucedido em alocar um assento livre. Todos os assentos estao cheios");
-		else if (resultado[0] == 1)
-			System.out.println("[2] Usuario #" + id + " bem-sucedido em alocar um assento livre. O assento alocado foi '" + resultado[1] + "'.");
 
 		return resultado[1];
 	}
 
-	boolean requisitaAssentoDado(int assentoId) {
+	private boolean requisitaAssentoDado(int assentoId) {
 		System.out.println("[3] Usuario #" + id + " requisitando assento dado '" + assentoId + "'.");
 		
 		assentos.entraEscrita();
@@ -320,54 +310,97 @@ class Usuario extends Thread {
 		int resultado = assentos.alocaAssentoDado(id, assentoId);
 		String mapa = assentos.visualizaAssentos();
 		buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
+		if (resultado == 0) {
+			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
+			buffer.adicionaElemento("3," + id + "," + -1 + "," + mapa);
+			return false;
+		} else {
+			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
+			buffer.adicionaElemento("3," + id + "," + assentoId + "," + mapa);
+			return true;
+		}
 		//
 		assentos.saiEscrita();
 
-		if (resultado == 0) {
-			System.out.println("[3] Usuario #" + id + " mal-sucedido em alocar o assento dado '" + assentoId + "'.");
-			return false;
-		} else if (resultado == 1) {
-			System.out.println("[3] Usuario #" + id + " bem-sucedido em alocar o assento dado '" + assentoId + "'.");
-			return true;
-		}
 
 		return false;
 	}
 
-	void requisitaLiberacaoAssento(int assentoId) {
+	private void requisitaLiberacaoAssento(int assentoId) {
 		System.out.println("[4] Usuario #" + id + " requisitando liberacao do assento dado '" + assentoId + "'.");
 		
 		assentos.entraEscrita();
 		//
 		int resultado = assentos.liberaAssento(id, assentoId);
 		String mapa = assentos.visualizaAssentos();
-		buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
+		if (resultado == 0) {
+			System.out.println("[4] Usuario #" + id + " mal-sucedido em desalocar o assento dado '" + assentoId + "'."); 
+			buffer.adicionaElemento("4," + id + "," + -1 + "," + mapa);
+		} else {
+			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
+			buffer.adicionaElemento("4," + id + "," + assentoId + "," + mapa);
+		}
 		//
 		assentos.saiEscrita();
+	}
+}
 
-		if (resultado == 0)
-			System.out.println("[4] Usuario #" + id + " mal-sucedido em desalocar o assento dado '" + assentoId + "'.");
-		else if (resultado == 1)
-			System.out.println("[4] Usuario #" + id + " bem-sucedido em desalocar o assento dado '" + assentoId + "'.");
+class ThreadCreator {
+	Assentos assentos;
+	Buffer buffer;
+	Consumidor consumidor;
+	int limite = 40,
+		contadorThreads = 1,
+		quantInicial;
+
+	public ThreadCreator(int quantInicial, int limite, Assentos assentos, Buffer buffer, Consumidor consumidor) {
+		this.quantInicial = quantInicial;
+		this.limite = limite;		
+		this.assentos = assentos;
+		this.buffer = buffer;
+		this.consumidor = consumidor;
+	}
+
+	public void iniciar() {
+		for (int i = 0; i < quantInicial; i++)
+			criarNovaThread(-1);
+	}
+
+	public synchronized void criarNovaThread(int calleeId) {
+		if (calleeId == limite) { 
+			System.out.println("Thread " + calleeId + " encerrou. Encerrando programa...");
+			consumidor.encerrar(); 
+			return; }
+		if (contadorThreads > limite) return;
+		
+		System.out.println("Thread " + calleeId + " pediu para criar nova thread de id " + contadorThreads);
+		Usuario usuario = new Usuario(contadorThreads, assentos, buffer, this);
+		usuario.start();
+		contadorThreads++;
 	}
 }
 
 //--------------------------------------------------------
 // Classe principal
 class Main {
-  static final int U = 5;
+  static final int TotalUsuarios = 5;
+  static final int UsuariosIniciais = 5;
+  static final int A = 5;
 
   public static void main(String[] args) {
     int i, delay = 1000;
 	Buffer buffer = new Buffer(U);
     Usuario[] usuarios = new Usuario[U];
-    Assentos assentos = new Assentos(5);
+    Assentos assentos = new Assentos(A);
 
 	Consumidor consumidor = new Consumidor(0, buffer);
 	consumidor.start();
 
-    for (i = 0; i < U; i++) {
-       usuarios[i] = new Usuario(i + 1, delay, assentos, buffer);
+	ThreadCreator threadCreator = new ThreadCreator(UsuariosIniciais, TotalUsuarios, assentos, buffer, consumidor);
+	threadCreator.iniciar();
+
+    /*for (i = 0; i < U; i++) {
+       usuarios[i] = new Usuario(i + 1, delay, assentos, buffer, threadCreator);
        usuarios[i].start(); 
     }
 
@@ -377,6 +410,6 @@ class Main {
     } catch (InterruptedException e) { } 
 
    	consumidor.encerrar();
-   	System.out.println(">> Fim");
+   	System.out.println(">> Fim");*/
   }
 }
